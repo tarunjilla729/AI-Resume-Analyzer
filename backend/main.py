@@ -17,9 +17,15 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 app = FastAPI(title="AI Resume Analyzer")
 
+cors_origin = os.getenv("CORS_ORIGIN", "*")
+if cors_origin == "*":
+    allow_origins = ["*"]
+else:
+    allow_origins = [o.strip() for o in cors_origin.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,6 +33,62 @@ app.add_middleware(
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+
+
+def _normalize_skill(s: str) -> str:
+    s = (s or "").strip()
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def _unique_preserve_order(items: list[str]) -> list[str]:
+    seen = set()
+    out: list[str] = []
+    for x in items:
+        if x in seen:
+            continue
+        seen.add(x)
+        out.append(x)
+    return out
+
+
+def _extract_jd_skills_with_groq(job_description: str) -> list[str]:
+    groq_client = _require_groq_client()
+
+    jd_prompt = f"""
+Extract ONLY technical skills from this job description.
+
+Rules:
+- Return valid JSON only
+- No markdown
+- No explanations
+- Keep exact technical skill names
+- Output should be a de-duplicated list
+
+Return format:
+{{"skills": []}}
+
+Job Description:
+{job_description}
+"""
+
+    completion = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": jd_prompt}],
+        temperature=0.1,
+    )
+
+    jd_ai_response = completion.choices[0].message.content or ""
+    jd_parsed = _extract_first_json_object(jd_ai_response)
+    raw = jd_parsed.get("skills", [])
+    skills = [
+        _normalize_skill(skill)
+        for skill in raw
+        if isinstance(skill, str) and _normalize_skill(skill)
+    ]
+    return _unique_preserve_order(skills)
 
 
 class ResumeRequest(BaseModel):
@@ -141,6 +203,13 @@ async def upload_resume(file: UploadFile = File(...)):
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Max allowed is {MAX_UPLOAD_BYTES} bytes.",
+        )
+
+
     try:
         if filename_lower.endswith(".pdf"):
             extracted_text = _extract_pdf_text(content)
@@ -164,80 +233,27 @@ async def upload_resume(file: UploadFile = File(...)):
 
 @app.post("/analyze")
 async def analyze_resume(data: ResumeRequest):
-    groq_client = _require_groq_client()
+    _ = _require_groq_client()  # ensure key present early
     resume_text_lower = (data.resume_text or "").lower()
 
     try:
-        jd_prompt = f"""
-Extract ONLY technical skills from this job description.
+        jd_skills = _extract_jd_skills_with_groq(data.job_description)
 
-Rules:
-- Return valid JSON only
-- No markdown
-- No explanations
-- No soft skills
-- No communication skills
-- No teamwork
-- No problem solving
-- No generic words
-- Keep exact technical skill names
-
-Examples:
-GOOD:
-Python
-FastAPI
-TensorFlow
-PyTorch
-Docker
-AWS
-SQL
-NLP
-Machine Learning
-Generative AI
-LLMs
-React
-Git
-
-BAD:
-Knowledge
-Experience
-Technology
-Learning
-Problem Solving
-Communication
-
-Return format:
-{{
-  "skills": []
-}}
-
-Job Description:
-{data.job_description}
-"""
-
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": jd_prompt}],
-            temperature=0.2,
-        )
-
-        jd_ai_response = completion.choices[0].message.content or ""
-        jd_parsed = _extract_first_json_object(jd_ai_response)
-        jd_skills_raw = jd_parsed.get("skills", [])
-        jd_skills = [skill.strip() for skill in jd_skills_raw if isinstance(skill, str) and skill.strip()]
-
-        matched_skills = []
+        # Deterministic filtering: only keep skills that truly appear in resume text.
+        matched_skills: list[str] = []
         for skill in jd_skills:
             if re.search(_skill_pattern(skill), resume_text_lower):
                 matched_skills.append(skill)
 
-        missing_skills = [skill for skill in jd_skills if skill not in matched_skills]
+        missing_skills: list[str] = [s for s in jd_skills if s not in matched_skills]
+
         score = int((len(matched_skills) / len(jd_skills)) * 100) if jd_skills else 0
 
+        # Coaching: explicitly forbid new skills; the model can only comment on provided skills.
         coaching_prompt = f"""
 You are a career coach.
-Do NOT invent new skills.
-Use ONLY the provided skills lists.
+You MUST NOT invent any new skills.
+Use ONLY these arrays exactly as provided.
 
 Return JSON only with this exact schema:
 {{
@@ -258,20 +274,24 @@ Return JSON only with this exact schema:
   "finalRecommendation": "string"
 }}
 
-Matched Skills: {matched_skills}
-Missing Skills: {missing_skills}
-ATS Score: {score}
+skillsPresent MUST equal: {matched_skills}
+skillsMissing MUST equal: {missing_skills}
+ATS Score MUST equal: {score}
 """
 
-        coaching_completion = groq_client.chat.completions.create(
+        completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": coaching_prompt}],
             temperature=0.2,
         )
 
-        coaching_response = coaching_completion.choices[0].message.content or ""
+        coaching_response = completion.choices[0].message.content or ""
         parsed = _extract_first_json_object(coaching_response)
         feedback = _ensure_feedback_schema(parsed, matched_skills, missing_skills)
+
+        # Final guardrail: overwrite hallucinated fields with deterministic ones.
+        feedback["skillsPresent"] = matched_skills
+        feedback["skillsMissing"] = missing_skills
 
         return {
             "score": score,
@@ -288,3 +308,4 @@ ATS Score: {score}
             "missing_skills": [],
             "ai_feedback": _empty_feedback(f"Error: {exc}"),
         }
+

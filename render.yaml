@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: ai-resume-analyzer-backend
+    env: python
+    runtime: python-3.11.10
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    rootDir: "./"
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: "/"
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: MAX_UPLOAD_BYTES
+        value: "5242880"
+
+  - type: web
+    name: ai-resume-analyzer-frontend
+    env: node
+    runtime: node
+    buildCommand: "cd frontend && npm ci && npm run build"
+    startCommand: "cd frontend && npm run start -- -p $PORT"
+    rootDir: "./"
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: "/"
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: "https://ai-resume-analyzer-backend.onrender.com"
+
