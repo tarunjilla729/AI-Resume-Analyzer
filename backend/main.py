@@ -247,7 +247,9 @@ async def analyze_resume(data: ResumeRequest):
 
         missing_skills: list[str] = [s for s in jd_skills if s not in matched_skills]
 
+
         score = int((len(matched_skills) / len(jd_skills)) * 100) if jd_skills else 0
+
 
         # Coaching: explicitly forbid new skills; the model can only comment on provided skills.
         coaching_prompt = f"""
