@@ -1,19 +1,15 @@
-# AI Resume Analyzer - Deployment & Production Fixes
+# TODO
 
-## Steps
-- [ ] Create root `runtime.txt` to force Render Python version.
-- [ ] Update backend `requirements.txt` with pinned compatible versions.
-- [ ] Harden backend ATS logic to prevent Groq skill hallucinations:
-  - deterministic JD-skill filtering
-  - deterministic resume matching
-  - use Groq only for coaching/recommendations
-  - robust JSON parsing + safe fallbacks
-- [x] Improve backend production readiness (upload size limits, CORS via env).
+## Completed
+- [x] Repo-root `runtime.txt` + `render.yaml` validated for consistent Python selection on Render.
+- [x] Hardened backend ATS scoring to be deterministic in Python.
+- [x] Added upload size limit via `MAX_UPLOAD_BYTES`.
+- [x] Added configurable CORS via `CORS_ORIGIN`.
+- [x] Ensured repo ignores artifacts via root `.gitignore`.
+- [x] Added missing root `README.md`.
 
-- [ ] Add/repair `.gitignore` at repo root (no venv/node_modules/.next/.env tracking).
-- [ ] Add `render.yaml` with exact Root Directory / Build / Start / Env.
-- [x] Verify backend + frontend local run instructions.
-
-- [x] Produce final deployment report + checklist.
-
+## Remaining (if you want to be extra strict)
+- [ ] Run `npm ci && npm run build` inside `frontend/` locally and verify.
+- [ ] Run backend lint/type checks (optional) and add a basic health endpoint check.
+- [ ] Confirm Render environment variables are set in the Render dashboard.
 
