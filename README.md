@@ -1,67 +1,245 @@
 # AI Resume Analyzer
 
-A full-stack application that:
-- Extracts text from a user-uploaded **PDF** or **DOCX** resume
-- Extracts **technical skills** from a job description (Groq)
-- Computes an **ATS-like score deterministically in Python** by matching extracted skills against the resume text
-- Uses AI only for coaching (interview questions, mastery plan, and rewrite suggestions)
+An AI-powered web application that helps job seekers evaluate how well their resume matches a specific job description. Simply upload your resume, paste a job description, and the application generates an ATS score along with personalized feedback to help improve your chances of getting shortlisted.
 
-## Architecture
-- **Backend**: FastAPI (`backend/main.py`)
-  - `POST /upload_resume` → extracts resume text
-  - `POST /analyze` → computes score + deterministic skill matching, then generates coaching
-- **Frontend**: Next.js (`frontend/app/page.tsx`)
-  - UI calls Next.js route handlers that proxy to the backend
+---
 
-## Local Setup
+## Live Demo
 
-### 1) Backend
-1. Create a Python virtual environment (recommended).
-2. Install dependencies:
-   ```bash
-   pip install -r backend/requirements.txt
-   ```
-3. Add backend environment variables:
-   - Create `backend/.env` with:
-     ```bash
-     GROQ_API_KEY=your_groq_key
-     CORS_ORIGIN=http://localhost:3000
-     MAX_UPLOAD_BYTES=5242880
-     ```
-4. Run the backend:
-   ```bash
-   uvicorn backend.main:app --host 127.0.0.1 --port 8000
-   ```
+**Frontend:**  
+https://ai-resume-analyzer-frontend-xz3l.onrender.com
 
-### 2) Frontend
-1. Install dependencies:
-   ```bash
-   cd frontend
-   npm ci
-   ```
-2. Run dev server:
-   ```bash
-   npm run dev
-   ```
+**Backend API:**  
+https://ai-resume-analyzer-1-mozg.onrender.com
 
-Open: http://localhost:3000
+**API Documentation:**  
+https://ai-resume-analyzer-1-mozg.onrender.com/docs
 
-## Render Deployment
-This repo includes `render.yaml` and a repo-root `runtime.txt`.
+---
 
-Set environment variables on Render for the backend service:
-- `GROQ_API_KEY`
-- `CORS_ORIGIN` (optional; defaults to `*`)
-- `MAX_UPLOAD_BYTES` (optional; defaults to 5MB)
+## Why I Built This
 
-The frontend is configured with:
-- `NEXT_PUBLIC_API_BASE_URL=https://ai-resume-analyzer-backend.onrender.com`
+Many applicants get rejected before a recruiter even sees their resume because of Applicant Tracking Systems (ATS). I wanted to build a project that gives users an idea of how their resume aligns with a job description while also providing meaningful suggestions for improvement using an LLM.
 
-## API Notes
-- Uploads are limited by `MAX_UPLOAD_BYTES`.
-- Only `.pdf` and `.docx` are supported.
+This project combines traditional skill matching with AI-generated recommendations to create a practical resume analysis tool.
 
-## Security Notes
-- Do not commit secrets to Git.
-- Backend uses `.env` loading locally; Render injects secrets as environment variables.
+---
 
+## Features
+
+- Upload resumes in PDF or DOCX format
+- Extract resume text automatically
+- Compare resumes against any job description
+- Calculate an ATS compatibility score
+- Identify matched and missing skills
+- Generate interview questions based on the role
+- Suggest projects to strengthen the profile
+- Provide resume improvement recommendations
+- Recommend learning paths for missing skills
+
+---
+
+## Tech Stack
+
+### Frontend
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+
+### Backend
+
+- FastAPI
+- Python
+- Groq API
+- Llama 3.3 70B
+- PyMuPDF
+- python-docx
+
+### Deployment
+
+- Render
+- GitHub
+
+---
+
+## Project Structure
+
+```
+AI-Resume-Analyzer
+│
+├── backend
+│   ├── main.py
+│   ├── requirements.txt
+│   ├── runtime.txt
+│   └── __init__.py
+│
+├── frontend
+│   ├── app
+│   ├── public
+│   ├── package.json
+│   └── next.config.js
+│
+├── render.yaml
+├── runtime.txt
+└── README.md
+```
+
+---
+
+## How It Works
+
+1. Upload your resume.
+2. The application extracts the text from the document.
+3. Paste a job description.
+4. The backend identifies important skills from the job description.
+5. Skills are matched against the resume.
+6. An ATS score is calculated.
+7. The AI generates personalized feedback, interview questions, project suggestions, and recommendations for improving the resume.
+
+---
+
+## Running the Project Locally
+
+### Clone the repository
+
+```bash
+git clone https://github.com/tarunjilla729/AI-Resume-Analyzer.git
+
+cd AI-Resume-Analyzer
+```
+
+---
+
+### Backend
+
+```bash
+cd backend
+
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# Linux/Mac
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+Create a `.env` file inside the backend folder.
+
+```env
+GROQ_API_KEY=your_groq_api_key
+```
+
+Run the backend
+
+```bash
+uvicorn main:app --reload
+```
+
+---
+
+### Frontend
+
+```bash
+cd frontend
+
+npm install
+```
+
+Create a `.env.local`
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+Start the frontend
+
+```bash
+npm run dev
+```
+
+---
+
+## API Endpoints
+
+### Upload Resume
+
+```
+POST /upload_resume
+```
+
+Extracts text from a PDF or DOCX resume.
+
+---
+
+### Analyze Resume
+
+```
+POST /analyze
+```
+
+Input
+
+```json
+{
+  "resume_text": "...",
+  "job_description": "..."
+}
+```
+
+Returns
+
+- ATS Score
+- Matching Skills
+- Missing Skills
+- AI Feedback
+- Interview Questions
+- Resume Suggestions
+- Project Recommendations
+- Learning Plan
+
+---
+
+## Future Improvements
+
+Some ideas I would like to add in the future:
+
+- User authentication
+- Resume history
+- Resume rewriting with AI
+- Export report as PDF
+- Support multiple LLM providers
+- Dark mode
+- Better ATS scoring algorithm
+- More detailed analytics
+
+---
+
+## Challenges Faced
+
+While building this project, I learned about:
+
+- Integrating Large Language Models into real-world applications
+- Building REST APIs using FastAPI
+- Handling PDF and DOCX parsing
+- Deploying full-stack applications on Render
+- Managing environment variables and API keys
+- Debugging deployment issues across frontend and backend services
+
+---
+
+## Author
+
+**Tarun Jilla**
+
+GitHub: https://github.com/tarunjilla729
+
+LinkedIn: https://www.linkedin.com/in/tarun-jilla-692b2628a/
+
+---
+
+If you found this project interesting, feel free to star the repository. Feedback and suggestions are always welcome!
